@@ -1,0 +1,25 @@
+.DS_Store
+
+# ── 只发布新版网站，以下旧版 / 未使用的文件不进入仓库（本地保留）──
+previous-version.html
+build/
+tests/
+components/
+vendor/
+css/app.css
+css/theme.css
+css/components.css
+js/app.js
+js/store.js
+js/icons.js
+data/seed.js
+assets/backgrounds/
+assets/characters/direction-sheet.png
+assets/characters/girl-cry.png
+assets/characters/girl-happy.png
+assets/characters/girl-side.png
+assets/characters/girl-sleepy.png
+assets/photos/paper-sky.png
+assets/photos/everything-ok.png
+assets/photos/girl-sleepy.png
+assets/videos/hero-character.mp4
