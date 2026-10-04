@@ -521,25 +521,63 @@
   }
 
   // 自动读取 GitHub 上该专区的文件夹，这样你自己上传照片就会自动出现
+  // 读取文件夹清单：优先 GitHub 接口（最新，但每小时 60 次限制），
+  // 失败时自动换成 jsDelivr（不限流，但新文件可能有缓存延迟）。
+  async function loadFolderListing(repo, dir) {
+    const cacheKey = 'ppniusworld.listing.v1.' + repo + '.' + dir;
+    const cached = store.get(cacheKey, null);
+    if (cached && cached.at && (Date.now() - cached.at) < 2 * 60 * 1000   // 清单缓存 2 分钟，新上传的照片很快出现 && Array.isArray(cached.files)) {
+      return cached.files;
+    }
+    let files = null;
+
+    try {
+      const res = await fetch('https://api.github.com/repos/' + repo + '/contents/' + dir + '?ref=main',
+        { headers: { Accept: 'application/vnd.github+json' } });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          files = data.filter(item => item.type === 'file')
+            .map(item => ({ name: item.name, url: item.download_url }));
+        }
+      }
+    } catch (error) { /* 换下一个来源 */ }
+
+    if (!files || !files.length) {
+      try {
+        const res = await fetch('https://data.jsdelivr.com/v1/packages/gh/' + repo + '@main?structure=flat');
+        if (res.ok) {
+          const data = await res.json();
+          const prefix = '/' + dir + '/';
+          files = (data.files || [])
+            .map(item => item.name)
+            .filter(name => name.startsWith(prefix) && name.slice(prefix.length).indexOf('/') === -1)
+            .map(name => {
+              const file = name.slice(prefix.length);
+              return { name: file, url: 'https://cdn.jsdelivr.net/gh/' + repo + '@main/' + dir + '/' + file };
+            });
+        }
+      } catch (error) { /* 放弃，用静态列表 */ }
+    }
+
+    if (files && files.length) store.set(cacheKey, { at: Date.now(), files });
+    return files;
+  }
+
+  // 自动读取 GitHub 上该专区的文件夹，这样你自己上传照片就会自动出现
   async function hydrateAutoList(zoneId) {
     const section = sectionById(zoneId);
     const dir = section && section.autoList;
     const repo = GALLERY.repo;
     if (!dir || !repo) return;
-    let files = null;
-    try {
-      const res = await fetch('https://api.github.com/repos/' + repo + '/contents/' + dir + '?ref=main',
-        { headers: { Accept: 'application/vnd.github+json' } });
-      if (!res.ok) return;
-      files = await res.json();
-    } catch (error) {
-      return;   // 离线或接口超限时，用 data/gallery.js 里的静态列表
-    }
-    if (!Array.isArray(files)) return;
-    const images = files
-      .filter(file => file.type === 'file' && /\.(jpe?g|png|webp|gif|avif)$/i.test(file.name))
-      .filter(file => !file.name.startsWith('.'));
+
+    const files = await loadFolderListing(repo, dir);
+    if (!files || !files.length) return;
+
+    const images = files.filter(file =>
+      /\.(jpe?g|png|webp|gif|avif)$/i.test(file.name) && !file.name.startsWith('.'));
     if (!images.length) return;
+
     images.sort((a, b) => {
       const na = /^ph-(\d+)/i.exec(a.name);
       const nb = /^ph-(\d+)/i.exec(b.name);
@@ -548,14 +586,16 @@
       if (nb) return 1;
       return a.name.localeCompare(b.name);
     });
+
     const presets = new Map(((GALLERY.photos && GALLERY.photos[zoneId]) || [])
       .map(item => [String(item.src).split('/').pop(), item]));
+
     runtimePhotos[zoneId] = images.map(file => {
       const preset = presets.get(file.name);
-      if (preset) return preset;                  // 保留 data/gallery.js 里写好的标题
+      if (preset) return preset;              // 保留 data/gallery.js 里写好的标题和缩略图
       return {
         id: 'auto-' + file.name,
-        src: file.download_url,
+        src: file.url,
         title: file.name.replace(/\.[^.]+$/, ''),
         tags: [],
         auto: true
