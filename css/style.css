@@ -472,6 +472,8 @@ body::before {
 .photo-meta { display: block; padding: 11px 4px 0; }
 .photo-meta strong { display: block; font-size: .95rem; font-weight: 600; }
 .photo-meta small { display: block; font-size: .74rem; color: var(--muted); letter-spacing: .06em; }
+.photo-card.is-auto .photo-frame { aspect-ratio: auto; }
+.photo-card.is-auto .photo-frame img { height: auto; object-fit: contain; }
 .zone-empty { padding: 60px 0; color: var(--ink-soft); }
 .zone-empty code { background: rgba(61, 55, 47, .07); padding: 2px 7px; border-radius: 6px; font-size: .85em; }
 

@@ -73,7 +73,8 @@
   };
 
   const sectionById = id => GALLERY.sections.find(item => item.id === id);
-  const photosOf = id => (GALLERY.photos && GALLERY.photos[id]) || [];
+  const runtimePhotos = {};   // 从 GitHub 文件夹自动读到的照片
+  const photosOf = id => runtimePhotos[id] || ((GALLERY.photos && GALLERY.photos[id]) || []);
   const noteKey = (zoneId, photoId) => zoneId + '::' + photoId;
   const getNote = (zoneId, photoId) => state.notes[noteKey(zoneId, photoId)] || '';
   const setNote = (zoneId, photoId, text) => {
@@ -151,6 +152,7 @@
     app.innerHTML = renderNav(route) + `<main class="view" id="view">${view}</main>`;
 
     if (route.name === 'home') mountHero();
+    if (route.name === 'gallery') hydrateAutoList(route.zoneId);
     if (route.name === 'id-card') bindEditableSection('#id-sheet', onIdCardInput);
     if (route.name === 'resume') bindEditableSection('#resume-sheet', onResumeInput);
 
@@ -242,7 +244,7 @@
       <button class="work-card" data-action="open-lightbox" data-zone="${esc(pick.zone)}" data-index="${pick.index}"
               style="--ratio:${((pick.photo.w || 4) / (pick.photo.h || 3)).toFixed(4)}"
               aria-label="预览 ${esc(pick.photo.title || '')}">
-        <img src="${esc(pick.photo.src)}" alt="${esc(pick.photo.title || '')}" loading="lazy" decoding="async" />
+        <img src="${esc(pick.photo.thumb || pick.photo.src)}" alt="${esc(pick.photo.title || '')}" loading="lazy" decoding="async" />
       </button>`).join('');
   }
 
@@ -481,6 +483,87 @@
   /* ==========================================================
    * 4. 专区页：滚动卡片流
    * ========================================================== */
+  // 单张作品卡（卡片用缩略图，点开才是大图）
+  function photoCardMarkup(zoneId, photo, index) {
+    const hasRatio = photo.w && photo.h;
+    const ratio = hasRatio ? (photo.w / photo.h).toFixed(4) : 'auto';
+    return `
+      <button class="photo-card${hasRatio ? '' : ' is-auto'}" data-action="open-lightbox" data-zone="${esc(zoneId)}" data-index="${index}"
+              style="--ratio:${ratio}" aria-label="预览 ${esc(photo.title || '')}">
+        <span class="photo-frame">
+          <img src="${esc(photo.thumb || photo.src)}" alt="${esc(photo.title || '')}" loading="lazy" decoding="async" />
+        </span>
+        <span class="photo-meta">
+          <strong>${esc(photo.title || 'untitled')}</strong>
+          <small>${(photo.tags || []).map(tag => '#' + esc(tag)).join(' ')}</small>
+        </span>
+      </button>`;
+  }
+
+  function cardsMarkup(zoneId, photos) {
+    if (!photos.length) {
+      return `
+      <div class="zone-empty">
+        <p>这里还是空的。</p>
+        <small>把照片放进 <code>assets/photos/${esc(zoneId)}/</code> 文件夹就会自动出现。</small>
+      </div>`;
+    }
+    return photos.map((photo, index) => photoCardMarkup(zoneId, photo, index)).join('');
+  }
+
+  function refreshGalleryGrid(zoneId) {
+    const host = $('.masonry');
+    if (!host) return;
+    const photos = photosOf(zoneId);
+    host.innerHTML = cardsMarkup(zoneId, photos);
+    const count = $('.zone-count');
+    if (count) count.textContent = photos.length + ' pieces · 点击任意图片进入预览，卡片可以翻到背面写字';
+  }
+
+  // 自动读取 GitHub 上该专区的文件夹，这样你自己上传照片就会自动出现
+  async function hydrateAutoList(zoneId) {
+    const section = sectionById(zoneId);
+    const dir = section && section.autoList;
+    const repo = GALLERY.repo;
+    if (!dir || !repo) return;
+    let files = null;
+    try {
+      const res = await fetch('https://api.github.com/repos/' + repo + '/contents/' + dir + '?ref=main',
+        { headers: { Accept: 'application/vnd.github+json' } });
+      if (!res.ok) return;
+      files = await res.json();
+    } catch (error) {
+      return;   // 离线或接口超限时，用 data/gallery.js 里的静态列表
+    }
+    if (!Array.isArray(files)) return;
+    const images = files
+      .filter(file => file.type === 'file' && /\.(jpe?g|png|webp|gif|avif)$/i.test(file.name))
+      .filter(file => !file.name.startsWith('.'));
+    if (!images.length) return;
+    images.sort((a, b) => {
+      const na = /^ph-(\d+)/i.exec(a.name);
+      const nb = /^ph-(\d+)/i.exec(b.name);
+      if (na && nb) return Number(na[1]) - Number(nb[1]);
+      if (na) return -1;
+      if (nb) return 1;
+      return a.name.localeCompare(b.name);
+    });
+    const presets = new Map(((GALLERY.photos && GALLERY.photos[zoneId]) || [])
+      .map(item => [String(item.src).split('/').pop(), item]));
+    runtimePhotos[zoneId] = images.map(file => {
+      const preset = presets.get(file.name);
+      if (preset) return preset;                  // 保留 data/gallery.js 里写好的标题
+      return {
+        id: 'auto-' + file.name,
+        src: file.download_url,
+        title: file.name.replace(/\.[^.]+$/, ''),
+        tags: [],
+        auto: true
+      };
+    });
+    refreshGalleryGrid(zoneId);
+  }
+
   function viewGallery(zoneId) {
     const section = sectionById(zoneId);
     if (!section) {
@@ -491,21 +574,7 @@
       </header></section>`;
     }
     const photos = photosOf(zoneId);
-    const cards = photos.length ? photos.map((photo, index) => `
-      <button class="photo-card" data-action="open-lightbox" data-zone="${esc(zoneId)}" data-index="${index}"
-              style="--ratio:${(photo.w || 4) / (photo.h || 3)}" aria-label="预览 ${esc(photo.title || '')}">
-        <span class="photo-frame">
-          <img src="${esc(photo.src)}" alt="${esc(photo.title || '')}" loading="lazy" decoding="async" />
-        </span>
-        <span class="photo-meta">
-          <strong>${esc(photo.title || 'untitled')}</strong>
-          <small>${(photo.tags || []).map(tag => '#' + esc(tag)).join(' ')}</small>
-        </span>
-      </button>`).join('') : `
-      <div class="zone-empty">
-        <p>这里还是空的。</p>
-        <small>在 data/gallery.js 的 <code>photos.${esc(zoneId)}</code> 数组里加一条就会出现在这里。</small>
-      </div>`;
+    const cards = cardsMarkup(zoneId, photos);
 
     return `
       <section class="zone-page">
