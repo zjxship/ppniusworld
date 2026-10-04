@@ -406,6 +406,42 @@ body::before {
 .site-foot a:first-of-type { margin-left: auto; }
 
 /* ============================================================
+ * 首页 · 作品预览
+ * ============================================================ */
+.home-work {
+  max-width: 1180px;
+  margin: clamp(40px, 6vw, 76px) auto 0;
+  padding-top: clamp(28px, 4vw, 46px);
+  border-top: 1px solid var(--line-soft);
+}
+.home-work-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 6px 24px;
+  margin-bottom: clamp(16px, 2.5vw, 28px);
+}
+.home-work-head .kicker { flex-basis: 100%; margin: 0; }
+.home-work-head h2 { margin: 0; font-family: var(--serif); font-weight: 500; font-size: clamp(1.5rem, 3.4vw, 2.2rem); }
+.home-work-head .text-link {
+  margin-left: auto; font-size: .82rem; color: var(--ink-soft);
+  border-bottom: 1px solid var(--line); padding-bottom: 3px;
+}
+.work-strip { columns: 4; column-gap: clamp(12px, 1.6vw, 20px); }
+.work-card {
+  display: block; width: 100%;
+  margin: 0 0 clamp(12px, 1.6vw, 20px);
+  break-inside: avoid;
+  border-radius: 14px; overflow: hidden;
+  background: var(--cream-deep);
+  box-shadow: var(--shadow-soft);
+  transition: transform .4s cubic-bezier(.2, .8, .2, 1), box-shadow .4s ease;
+}
+.work-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); }
+.work-card img { width: 100%; aspect-ratio: var(--ratio, 1); object-fit: cover; }
+.work-empty { color: var(--ink-soft); }
+
+/* ============================================================
  * 专区页
  * ============================================================ */
 .zone-page { position: relative; z-index: 3; background: var(--cream); padding: clamp(110px, 14vh, 170px) clamp(18px, 6vw, 80px) 70px; }
@@ -670,6 +706,7 @@ body::before {
  * ============================================================ */
 @media (max-width: 1080px) {
   .masonry { columns: 2; }
+  .work-strip { columns: 3; }
 }
 
 @media (max-width: 860px) {
@@ -703,8 +740,11 @@ body::before {
   .rh-photo { width: 96px; }
 }
 
+@media (max-width: 860px) { .work-strip { columns: 2; } }
+
 @media (max-width: 620px) {
   .masonry { columns: 1; }
+  .work-strip { columns: 2; }
   .flip-card { height: min(66vh, 520px); }
   .lb-bar { padding: 12px 14px; }
   .lb-right { gap: 6px; }

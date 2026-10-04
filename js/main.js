@@ -224,6 +224,28 @@
     }).join('');
   }
 
+  // 首页作品预览：摄影多取几张，其它专区各取一张
+  function workPicks() {
+    const picks = [];
+    photosOf('photography').slice(0, 6).forEach((photo, index) => picks.push({ zone: 'photography', photo, index }));
+    GALLERY.sections.filter(section => section.id !== 'photography').forEach(section => {
+      const list = photosOf(section.id);
+      if (list.length) picks.push({ zone: section.id, photo: list[0], index: 0 });
+    });
+    return picks;
+  }
+
+  function workPreviewMarkup() {
+    const picks = workPicks();
+    if (!picks.length) return '<p class="work-empty">还没有作品，去 data/gallery.js 里加图吧。</p>';
+    return picks.map(pick => `
+      <button class="work-card" data-action="open-lightbox" data-zone="${esc(pick.zone)}" data-index="${pick.index}"
+              style="--ratio:${((pick.photo.w || 4) / (pick.photo.h || 3)).toFixed(4)}"
+              aria-label="预览 ${esc(pick.photo.title || '')}">
+        <img src="${esc(pick.photo.src)}" alt="${esc(pick.photo.title || '')}" loading="lazy" decoding="async" />
+      </button>`).join('');
+  }
+
   function viewHome() {
     const companion = GAZE.map(name => `
       <img class="gaze-layer ${name === 'center' ? 'is-active' : ''}" data-gaze="${name}"
@@ -268,6 +290,16 @@
           <p class="home-head-sub">文字、摄影、设计、剪辑 —— 选一间进去看看。</p>
         </header>
         <div class="zones">${zonesMarkup()}</div>
+
+        <section class="home-work">
+          <header class="home-work-head">
+            <p class="kicker">SELECTED WORK</p>
+            <h2>Recent pictures.</h2>
+            <a class="text-link" href="#/gallery/photography">看全部摄影 →</a>
+          </header>
+          <div class="work-strip">${workPreviewMarkup()}</div>
+        </section>
+
         <footer class="site-foot">
           <span>${esc(GALLERY.brand || 'ppniusworld')}</span>
           <span>made slowly, with paper and light</span>
