@@ -79,3 +79,20 @@ assets/               图片、视频、头像
 - 预览里可以 3D 翻转，背面直接点着写字，自动保存（字体与标题一致）
 - 支持键盘：空格翻转、← → 切换、Esc 关闭
 - 响应式 + `prefers-reduced-motion` 降级 + 简历打印排版
+
+---
+
+## 线上网址（GitHub Pages）
+
+**永久地址：** https://zjxship.github.io/ppniusworld/
+**仓库地址：** https://github.com/zjxship/ppniusworld
+
+网站是公开的，手机和别人的电脑都能打开。
+
+### 更新线上内容
+
+改完本地文件后，需要**重新上传到 GitHub** 才会生效。
+最简单的办法：直接跟 Codex 说「帮我更新一下线上网站」，它会帮你重新推送。
+
+> 说明：仓库里只包含网站实际用到的文件（约 13MB）。
+> 旧版页面 `previous-version.html`、`build/`、`tests/` 等文件只保留在本地，没有上传。
