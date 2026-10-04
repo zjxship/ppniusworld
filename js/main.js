@@ -526,7 +526,8 @@
   async function loadFolderListing(repo, dir) {
     const cacheKey = 'ppniusworld.listing.v1.' + repo + '.' + dir;
     const cached = store.get(cacheKey, null);
-    if (cached && cached.at && (Date.now() - cached.at) < 2 * 60 * 1000   // 清单缓存 2 分钟，新上传的照片很快出现 && Array.isArray(cached.files)) {
+    // 清单缓存 2 分钟，新上传的照片很快出现
+    if (cached && cached.at && (Date.now() - cached.at) < 2 * 60 * 1000 && Array.isArray(cached.files)) {
       return cached.files;
     }
     let files = null;
