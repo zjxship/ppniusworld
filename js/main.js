@@ -522,15 +522,16 @@
 
   // 自动读取 GitHub 上该专区的文件夹，这样你自己上传照片就会自动出现
   // 读取文件夹清单：优先 GitHub 接口（最新，但每小时 60 次限制），
-  // 失败时自动换成 jsDelivr（不限流，但新文件可能有缓存延迟）。
+  // 失败时自动换成 jsDelivr（不限流，但新文件可能有最多 12 小时缓存）。
+  // 返回 source 用来判断：GitHub = 以文件夹为准；jsDelivr = 和内置列表合并，避免新照片被藏起来。
   async function loadFolderListing(repo, dir) {
-    const cacheKey = 'ppniusworld.listing.v1.' + repo + '.' + dir;
+    const cacheKey = 'ppniusworld.listing.v2.' + repo + '.' + dir;
     const cached = store.get(cacheKey, null);
-    // 清单缓存 2 分钟，新上传的照片很快出现
     if (cached && cached.at && (Date.now() - cached.at) < 2 * 60 * 1000 && Array.isArray(cached.files)) {
-      return cached.files;
+      return { files: cached.files, source: cached.source || 'github' };
     }
     let files = null;
+    let source = 'github';
 
     try {
       const res = await fetch('https://api.github.com/repos/' + repo + '/contents/' + dir + '?ref=main',
@@ -545,6 +546,7 @@
     } catch (error) { /* 换下一个来源 */ }
 
     if (!files || !files.length) {
+      source = 'jsdelivr';
       try {
         const res = await fetch('https://data.jsdelivr.com/v1/packages/gh/' + repo + '@main?structure=flat');
         if (res.ok) {
@@ -561,8 +563,8 @@
       } catch (error) { /* 放弃，用静态列表 */ }
     }
 
-    if (files && files.length) store.set(cacheKey, { at: Date.now(), files });
-    return files;
+    if (files && files.length) store.set(cacheKey, { at: Date.now(), files, source });
+    return files && files.length ? { files, source } : null;
   }
 
   // 自动读取 GitHub 上该专区的文件夹，这样你自己上传照片就会自动出现
@@ -572,10 +574,10 @@
     const repo = GALLERY.repo;
     if (!dir || !repo) return;
 
-    const files = await loadFolderListing(repo, dir);
-    if (!files || !files.length) return;
+    const listing = await loadFolderListing(repo, dir);
+    if (!listing) return;
 
-    const images = files.filter(file =>
+    const images = listing.files.filter(file =>
       /\.(jpe?g|png|webp|gif|avif)$/i.test(file.name) && !file.name.startsWith('.'));
     if (!images.length) return;
 
@@ -588,12 +590,12 @@
       return a.name.localeCompare(b.name);
     });
 
-    const presets = new Map(((GALLERY.photos && GALLERY.photos[zoneId]) || [])
-      .map(item => [String(item.src).split('/').pop(), item]));
+    const staticList = (GALLERY.photos && GALLERY.photos[zoneId]) || [];
+    const presets = new Map(staticList.map(item => [String(item.src).split('/').pop(), item]));
 
-    runtimePhotos[zoneId] = images.map(file => {
+    const merged = images.map(file => {
       const preset = presets.get(file.name);
-      if (preset) return preset;              // 保留 data/gallery.js 里写好的标题和缩略图
+      if (preset) return preset;              // 保留写好的标题和缩略图
       return {
         id: 'auto-' + file.name,
         src: file.url,
@@ -602,6 +604,17 @@
         auto: true
       };
     });
+
+    if (listing.source !== 'github') {
+      // jsDelivr 有缓存，可能还没收录新照片 —— 把内置列表里剩下的补回来
+      const seen = new Set(images.map(file => file.name));
+      staticList.forEach(item => {
+        const name = String(item.src).split('/').pop();
+        if (!seen.has(name)) merged.push(item);
+      });
+    }
+
+    runtimePhotos[zoneId] = merged;
     refreshGalleryGrid(zoneId);
   }
 
