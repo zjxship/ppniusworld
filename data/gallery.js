@@ -31,6 +31,7 @@ window.PPNIUS_GALLERY = {
       kicker: 'PHOTO',
       kind: 'card',
       autoList: 'assets/photos/photography',   // 这个文件夹里的照片会自动显示
+      manifest: 'data/photography-manifest.json',   // 由 GitHub Action 自动生成
       color: '#cfe0f2',
       cover: 'assets/photos/covers/photography.jpg',
       blurb: '天空、光线，还有那些刚好被我看见的瞬间。'

@@ -1,0 +1,44 @@
+name: Update photography manifest
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'assets/photos/photography/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate data/photography-manifest.json
+        run: |
+          python3 - <<'EOF'
+          import os, json
+          d = 'assets/photos/photography'
+          files = sorted(
+              f for f in os.listdir(d)
+              if os.path.isfile(os.path.join(d, f))
+              and f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif'))
+          )
+          with open('data/photography-manifest.json', 'w', encoding='utf-8') as fp:
+              json.dump({'count': len(files), 'photos': files}, fp, ensure_ascii=False, indent=2)
+          print(f'{len(files)} photos')
+          EOF
+
+      - name: Commit if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/photography-manifest.json
+          if git diff --cached --quiet; then
+            echo "清单没有变化"
+          else
+            git commit -m "chore: update photography manifest"
+            git push
+          fi

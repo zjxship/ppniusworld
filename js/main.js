@@ -524,7 +524,7 @@
   // 读取文件夹清单：优先 GitHub 接口（最新，但每小时 60 次限制），
   // 失败时自动换成 jsDelivr（不限流，但新文件可能有最多 12 小时缓存）。
   // 返回 source 用来判断：GitHub = 以文件夹为准；jsDelivr = 和内置列表合并，避免新照片被藏起来。
-  async function loadFolderListing(repo, dir) {
+  async function loadFolderListing(repo, dir, manifestPath) {
     const cacheKey = 'ppniusworld.listing.v2.' + repo + '.' + dir;
     const cached = store.get(cacheKey, null);
     if (cached && cached.at && (Date.now() - cached.at) < 2 * 60 * 1000 && Array.isArray(cached.files)) {
@@ -533,17 +533,33 @@
     let files = null;
     let source = 'github';
 
-    try {
-      const res = await fetch('https://api.github.com/repos/' + repo + '/contents/' + dir + '?ref=main',
-        { headers: { Accept: 'application/vnd.github+json' } });
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          files = data.filter(item => item.type === 'file')
-            .map(item => ({ name: item.name, url: item.download_url }));
+    // 站内清单（GitHub Action 自动生成）：同源、无限流、私有仓库也能用
+    if (manifestPath) {
+      try {
+        const res = await fetch(manifestPath, { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.photos)) {
+            files = data.photos.map(name => ({ name, url: dir + '/' + name }));
+            source = 'manifest';
+          }
         }
-      }
-    } catch (error) { /* 换下一个来源 */ }
+      } catch (error) { /* 继续尝试在线来源 */ }
+    }
+
+    if (!files || !files.length) {
+      try {
+        const res = await fetch('https://api.github.com/repos/' + repo + '/contents/' + dir + '?ref=main',
+          { headers: { Accept: 'application/vnd.github+json' } });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            files = data.filter(item => item.type === 'file')
+              .map(item => ({ name: item.name, url: item.download_url }));
+          }
+        }
+      } catch (error) { /* 换下一个来源 */ }
+    }
 
     if (!files || !files.length) {
       source = 'jsdelivr';
@@ -574,7 +590,7 @@
     const repo = GALLERY.repo;
     if (!dir || !repo) return;
 
-    const listing = await loadFolderListing(repo, dir);
+    const listing = await loadFolderListing(repo, dir, section.manifest);
     if (!listing) return;
 
     const images = listing.files.filter(file =>
